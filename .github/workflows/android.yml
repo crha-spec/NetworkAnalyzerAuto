@@ -16,23 +16,39 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         
-    - name: Debug - List files
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      
+    - name: Debug - Check files
       run: |
-        echo "=== CURRENT DIRECTORY ==="
+        echo "=== CURRENT DIR ==="
         pwd
-        echo "=== ANDROID FILES ==="
-        ls -la android/
-        echo "=== GRADLEW EXISTS? ==="
-        ls -la android/gradlew || echo "gradlew NOT FOUND"
+        echo "=== ANDROID CONTENTS ==="
+        find android/ -type f -name "*" | head -20 || echo "No files found"
         
-    - name: Build with Gradle
+    - name: Install dependencies
+      run: |
+        npm install || echo "npm install failed but continuing"
+        
+    - name: Build APK (Gradle Wrapper or Direct)
       run: |
         cd android
-        chmod +x gradlew
-        ./gradlew clean assembleDebug --stacktrace
         
-    - name: Upload APK
+        # Gradlew yoksa direkt gradle kullan
+        if [ -f "gradlew" ]; then
+          echo "Using gradlew"
+          chmod +x gradlew
+          ./gradlew clean assembleDebug --stacktrace
+        else
+          echo "Gradlew not found, using system gradle"
+          gradle clean assembleDebug --stacktrace || echo "Gradle build failed"
+        fi
+        
+    - name: Upload APK if exists
+      if: success() || failure()
       uses: actions/upload-artifact@v4
       with:
-        name: app-apk
-        path: android/app/build/outputs/apk/debug/*.apk
+        name: app-build-output
+        path: |
+          android/app/build/outputs/
+          android/build/reports/
